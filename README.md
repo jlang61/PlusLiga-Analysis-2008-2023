@@ -42,12 +42,12 @@ The project heavily utilized Machine Learning to:
 
 ### Machine Learning Methods Used
 
-- **Logistic Regression**: Used to predict match winners based on significant predictors like attacking efficiency and blocking performance.
-- **Linear Discriminant Analysis**: Applied to classify match outcomes.
-- **Quadratic Discriminant Analysis**: Used for classification with non-linear decision boundaries.
-- **Elastic Net**: Combines Lasso and Ridge regression for variable selection and regularization.
-- **Random Forests**: Applied to understand variable importance and create robust predictions of match outcomes.
-- **Boosted Trees**: Used to improve prediction accuracy by combining multiple weak models.
+- **Logistic Regression**: Used to predict match winners based on significant predictors like attacking efficiency and blocking performance. This method is simple and interpretable, making it useful for understanding the impact of individual predictors.
+- **Linear Discriminant Analysis**: Applied to classify match outcomes by finding a linear combination of features that best separates the classes (winners and losers).
+- **Quadratic Discriminant Analysis**: Used for classification with non-linear decision boundaries, allowing for more flexibility in modeling the relationship between features and match outcomes.
+- **Elastic Net**: Combines Lasso and Ridge regression for variable selection and regularization. This method helps in handling multicollinearity and selecting important features by applying both L1 and L2 penalties.
+- **Random Forests**: Applied to understand variable importance and create robust predictions of match outcomes. This ensemble method builds multiple decision trees and combines their predictions to improve accuracy and control overfitting.
+- **Boosted Trees**: Used to improve prediction accuracy by combining multiple weak models. This method sequentially builds trees, with each tree correcting the errors of the previous ones, leading to a strong overall model.
 
 ### Example Analyses
 
