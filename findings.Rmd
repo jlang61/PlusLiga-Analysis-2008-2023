@@ -1,0 +1,554 @@
+---
+title: "PlusLiga Volleyball Statistics"
+output: 
+  html_document:
+    theme: united
+    toc: true
+    toc_float: true
+date: "2024-09-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+
+## How does volleyball work?
+
+In the sport of volleyball, there are 6 individuals on each side of the court separated by a net. They contribute to the teams effort of not letting the ball drop on their court and ensuring that it either lands in the other team's court or that the other teams makes the ball land outside of the court. If done successfully, they are awarded a point and both teams try to reach 25 points as soon as possible and win by at least 2 points. For example, if both teams are at 24 - 24,  a team may win if they reach 24 - 26. Finally, a volleyball game has at most 5 sets, and the team that wins 3 sets (best of 5) wins the game!
+
+## What can you do in Volleyball?
+
+In volleyball, a point is started with one team serving the ball. Serving occurs when a player goes outside of the court on their side, and hits it over the net and into the opposing team. Then, each team is allowed three touches. Usually, it follows the rhythm of receive, set, and attack. For receiving, an individual makes sure that the ball bounces off their body and towards the setter. The setter then does a quick tap motion on the ball and sends it towards an attacker so that it is not considered holding and pushing the ball (which is illegal to do in volleyball). Finally, the attacker jumps and hits the ball downwards towards the enemy team court and over the net. During this time, the opposing team may jump and stretch their hands in order to block this attempt to hit it downwards. Whether it be blocking, attacking, or even how accurate your passes and sets are, everything is important to guaranteeing your team's victory as it all meshes together. 
+
+## Volleyball Lingo
+
+In the data, there is some volleyball lingo that is used, so in order to ensure that you can understand it, I'll discuss it briefly in this section. 
+
+Ace: An Ace is a serve that touches the ground before anyone on the opposing team can touch it. Usually, this occurs when the serve is extremely fast or tough to reach, and it results in an automatic point to the serving team since it touched the ground.
+
+Perfect Receive: Since the goal of receiving is to put it as close to the setter, where the received ball goes is extremely important. In this case, a perfect receive is one that goes straight to the setter and that the setter does not have to move at all. This is great because then the setter can help set to many attackers at once and because of this, the opposing team has to guess which one the setter would set it to.
+
+Effectiveness: The term effectiveness is used a lot and usually it is regarded as number of positive outcomes divided by number of total outcomes. However, in this study it seems that for serve efficiency, it is actually regarded as (# positive serves - # missed serves)/(total #) because a substantial portion of serve efficiency are negative. For attack efficiency, it is # of successful attacks/(total #). Let's keep this in mind as we go into more about the data and the study.
+
+## What is the goal of this study?
+
+Although all aspects of volleyball are important (blocking, attacking, receiving, setting), some aspects may be more important than others, and for competitive volleyball players in school or in a pro-league, it may be vital to understand which ones are the most important so that they spend more time on practicing specific aspects. Because of this, this study aims to predict the winner of a given match with the statistics, and then see how important each aspect of volleyball was to determine the winner. Hopefully, my studies are conclusive about which aspects and can actually benefit players who compete at the pro level and want to understand what is the most statistically relevant part of volleyball. To anyone else, I do hope this study helps you understand more about the machine learning process and makes you interested in volleyball as well.
+
+## Where was this data obtained?
+
+Thankfully, a user named kacpergregorowica was able to compile the information of a popular Poland volleyball pro league statistics and share them online on Kaggle for us. They collected information from 2008 to 2023 of the statistics in Poland pro league.
+
+The data includes statstics from Kaggle, ["Men's Volleyball - PlusLiga - 2008-2023"](https://www.kaggle.com/datasets/kacpergregorowicz/-mens-volleyball-plusliga-20082022?resource=download), which was taken from the official PlusLiga Volleyball website by user kacpergregorowicz on kaggle.
+
+The data is full of data and may be hard to understand at first, so with that in mind let us load the package and data and see what it looks like!
+
+
+# Loading Package and Data
+
+After downloading the csv file, we will now introduce it by reading it from the working directory and then make sure that the data is what we expect.
+
+```{r, include = FALSE}
+library(tidymodels)
+library(kableExtra)
+library(ellipsis)
+library(naniar)
+library(kableExtra)
+library(recipes)
+library(kknn)
+library(glmnet)
+library(MASS)
+library(dplyr)
+library(ggplot2)
+library(tibble)
+library(themis)
+library(janitor)
+library(corrplot)
+library(ranger)
+library(vip)
+library(parsnip)
+library(discrim)
+library(xgboost)
+```
+
+```{r}
+set.seed(123)
+setwd("~/Downloads")
+df_raw <- read.csv("Mens-Volleyball-PlusLiga-2008-2023.csv")
+head(df_raw)
+```
+On a first glance of the head of the data, there seems to be many variables (specifically 44 variables) which can be hard to discern and truly look through. First, we should look at the variables and the types in a better manner so we can truly understand what we should expect.
+
+## Tidying the Observations
+
+Let's take a look at the data and its variables to see what we are working with. 
+```{r}
+str(df_raw)
+```
+
+As shown above, in each observation we have two teams of which have multiple different variables and a winner which decides whether or not Team 2 or 1 won. The kaggle dataset online states that, if winner is of value 0, Team 1 won, but if winner's value is 1, Team 2 won.
+
+For other values, please refer to the codebook to fully understand what each variable represents. I have attached the codebook along with this study.
+
+Due to the nature of trying to predict the winner, it would be easier to separate the Team 1 and Team 2 each observation to two separate ones. This way, training models would be much easier as we don't have to separate the observations while we train the model, they will be already separated for us!
+
+
+```{r}
+# ASked ChatGPT: Help me transform the data of team 1 and team 2 into different observations
+team1 <- df_raw %>%
+  dplyr::select(Date, Team = Team_1, Score = T1_Score, Sum = T1_Sum, BP = T1_BP,
+         Ratio = T1_Ratio, Srv_Sum = T1_Srv_Sum, Srv_Err = T1_Srv_Err,
+         Srv_Ace = T1_Srv_Ace, Srv_Eff = T1_Srv_Eff, Rec_Sum = T1_Rec_Sum,
+         Rec_Err = T1_Rec_Err, Rec_Pos = T1_Rec_Pos, Rec_Perf = T1_Rec_Perf,
+         Att_Sum = T1_Att_Sum, Att_Err = T1_Att_Err, Att_Blk = T1_Att_Blk,
+         Att_Kill = T1_Att_Kill, Att_Kill_Perc = T1_Att_Kill_Perc, Att_Eff = T1_Att_Eff,
+         Blk_Sum = T1_Blk_Sum, Blk_As = T1_Blk_As, Winner) %>%
+  mutate(Winner = ifelse(Winner == 0, 1, 0))
+team2 <- df_raw %>%
+  dplyr::select(Date, Team = Team_2, Score = T2_Score, Sum = T2_Sum, BP = T2_BP,
+         Ratio = T2_Ratio, Srv_Sum = T2_Srv_Sum, Srv_Err = T2_Srv_Err,
+         Srv_Ace = T2_Srv_Ace, Srv_Eff = T2_Srv_Eff, Rec_Sum = T2_Rec_Sum,
+         Rec_Err = T2_Rec_Err, Rec_Pos = T2_Rec_Pos, Rec_Perf = T2_Rec_Perf,
+         Att_Sum = T2_Att_Sum, Att_Err = T2_Att_Err, Att_Blk = T2_Att_Blk,
+         Att_Kill = T2_Att_Kill, Att_Kill_Perc = T2_Att_Kill_Perc, Att_Eff = T2_Att_Eff,
+         Blk_Sum = T2_Blk_Sum, Blk_As = T2_Blk_As, Winner)
+
+vball_raw <- bind_rows(team1, team2)
+
+
+head(vball_raw)
+```
+Nice! Now we have separate observations and an easier way to predict with just the statistics of each game. However, before going any further, we should keep in mind that team, score, sum, date, bp, and ratio are variables that should not be included in or prediction. Since the game is the first to 3 sets and the variable score is how many sets a team won, this is an easy giveaway about which team won and is not important to our goal. Sum, ratio follow a similar standpoint and date is not an important variable to consider when it comes to volleyball techniques. 
+
+## The Dilemma of BP
+
+For bp, this is a special circumstance, bp means "Points scored in a counterattack on your own serve" or in other words, amount of points your team won while you were serving. This variable can be extremely useful, but in terms of the goal of this study to find the most important statistics related to volleyball skills, bp has no reflection of a specific skills in volleyball. Winning a point while you are serving has to do with a large amount of separate factors. Whether the other team didn't attack the ball well, your team received it well once the ball got over, or even if your team set it well, these are all factors that can play into an increase of bp. Because of this, I have and will chose to omit this from our models in the future.
+
+## Tidying the Data
+
+In the data, the percentages and some variables are represented as characters, this does not make sense as they should be numerical. Lets make sure that they are properly represented as numeric values. We can do this by identifying the ones with percentages or commas, removing the commas with a global substitution function, turning them into numerical values, and then dividing them by 100 if they are percentages. 
+
+Additionally, all the names are not the cleanest. There are capital letters at the start of each word which may interfere with future naming conventions. To make sure that they are all consistent, we will use clean_names function to help us with this issue. Also, since the outcome is whether they win or not, let change the winners to be a factor
+
+
+```{r}
+
+vball_raw[c("Srv_Eff", "Rec_Pos", "Rec_Perf", "Att_Kill_Perc", "Att_Eff", "Att_Sum")] <- lapply(vball_raw[c("Srv_Eff", "Rec_Pos", "Rec_Perf", "Att_Kill_Perc", "Att_Eff", "Att_Sum")], function(x) {
+  as.numeric(gsub("%", "", x))/100
+})
+vball_raw[c("Srv_Err", "Blk_As")] <- lapply(vball_raw[c("Srv_Err", "Blk_As")], function(x) {
+  as.numeric(gsub(",", ".", x)) 
+})
+
+vball_raw <- vball_raw %>% 
+  mutate(
+    Winner = factor(Winner, levels = c(1,0))
+  )
+vball_raw <- clean_names(vball_raw)
+```
+
+Now that our data is nice and tidy, lets move on to exploring more about the data!
+
+# Exploratory Data Analysis 
+
+To begin, lets look at the distribution of our winner and losers. Since we split it earlier, we should expect a clean 50/50 split between the winner and losers.
+
+```{r}
+ggplot(vball_raw, aes(x = winner)) +
+  geom_bar(fill = "blue", color = "black") +
+  labs(title = "Counts of Winner and Losers", x = "Won a match?", y = "Count") +
+  theme_minimal()
+
+```
+
+And we are correct! There is a clean 50/50 split of the winners and losers which makes sense as there is always one winner and one loser of each match. 
+
+Now lets say, we want to find out whether or not a team's attacking efficiency actually changes whether or not a team won. Or, will a team be more likely to win if they have a higher attacking percentage?
+
+We can actually dive a bit deeper into exploring and find out an answer to this question. We can plot, lets say, how well a team's was in their attacks against the enemy team and whether or not they won to find out if there is a distinction! Intuitively, we expect the team with a better attacking kill percentage to prevail because they were able to win much more points with their attacks. To do this, we will plot it but with a jitter. This makes the plot have some sort of "concentration" in some areas so we can tell whether or not there were a lot of losers or winners in a particular section.
+
+```{r}
+ggplot(data = vball_raw, aes(x = att_eff, y = winner)) + 
+  geom_jitter(width = 0.01, height = 0.1) +  
+  ggtitle("Comparison of Attack Efficiency versus Winner") + 
+  labs(x = "Attack Efficiency", y = "Winner")
+```
+
+In this plot, even though it looks mostly random, we can still tell how there is some correlation as the center of both data is centered around ~0.4 for the teams that lost and around 0.5 for the teams that won. Because of this, we can say that there are more teams that won with an overall higher attack kill percentage than those that lost. This matches our intuition of what we said earlier, so it does make sense that the trends look like this!
+
+Now, lets look through multivariate distribution to see any trends between the variables of the data. Lets ask ourselves, how do teams do with serving and attacking efficiency, and does this have any effect on whether or not they win?
+
+In this part, I wanted to build off of the attacking efficiency and add a serving efficiency as well as teams. To me, teams in a league may do differently with these aspects because of how much they train attacking or serving. So separating into teams can make us look deeper and understand trends about the data and the team. As for the serving efficiency, it is similar in intuition to attacking efficiency. We can probably expect teams with a higher serving efficiency to do better because they gave up less points in missed serves. Let's see if this is true!
+
+```{r}
+# asked ChatGPT 3.5 for help on multivariate: How do I add teams and titles to my ggplot
+ggplot(vball_raw, aes(x = srv_eff, y = att_eff, color = factor(winner))) +
+  geom_point() +
+  facet_wrap(~ team) +
+  labs(title = "Serve Efficiency vs. Attacking Efficiency",
+       x = "Serve Efficiency",
+       y = "Attacking Efficiency",
+       color = "Winner")
+```
+
+With two separate variables added (Serve Efficiency and Team Name), we can see how well each team does with serves and attacking kills. Teams like PGE Skraseem to have wide spread of serve efficiency and and a wide spread of attack efficiency which can mean that they are not as consistent. Then teams like Jadar Radom seem incredibly efficient with their attacks and serves boasting a positive serve efficiency and high attack efficiency. Throughout all of this data, we can also notice how most of the bottom part of the data are instances in which the team loses, while the top is mostly wins. This supports what we have seen in our previous plot of how a teams with a higher attacking efficiency are often also the teams that win the game. Nonetheless, serve efficiency doesn't seem to be a big contributer as the blue data is just on top and not necessarily on the top right which would say a trend between serve efficiency and winning. 
+
+Unfortunately, this does mean our earlier intuition was false, but thats ok! Learning that our intuition was false is still learning! We can take this into account and actually fix this misconception about serves!
+
+Speaking of intuition, a powerful way to understand if there are trends are by looking at a correlation plot. Correlation plots lets you see how correlated two variables are, or in other words, if there is a trend between the two. Lets look through correlation plots to see if any of them are correlated!
+
+```{r}
+vball_numeric <- vball_raw %>% 
+  select_if(is.numeric)
+
+vball_cor <- cor(vball_numeric)
+vball_corlot <- corrplot(vball_cor, method = "circle")
+```
+
+Looking at the correlation matrix, we can notice how many of the variables have high absolute correlation value with others. This means that in an increase of one variable, the other variable either increases or decreases a substantianal amount as well. So for esxample, when the the error of servers increases, the number of points gained from an ace decreases. This makes sense! If serves are missed, then that means there is a missed chance of the serve acing the opponent! Overall, there are high correlation between variables BP, Ratio, Src_Sum, Srv_Err, Srv_Ace, Srv_Eff, Rec_Sum, Rec_Err, Att_Sum, Att_Err, Att_Kill, and Blk_As.
+
+## Missing Data and Values
+
+
+We should also discuss the topic of missing data and values as they can contribute to issues and precautions that may be needed in the future. We can do a simple check via vis_miss to look through all columns and if they are missing data. 
+
+```{r}
+vis_miss(vball_raw)
+```
+
+Thankfully, we have no missing data. Because we have handled the transition from character to numeric data well, there are no missing data. This can be attributed to how each match has statistics being taken of in real time, so no data is missing. Although missing data isn't bad persay, having no missing data can relieve some issues that we would have to fix later on when we are preparing to fit our data. 
+
+
+# Data Splitting
+
+Before starting our models to predict the winner, we need to split the data up into testing and training. Think of it like this, the training part are like volleyball practices, we improve and try to be the best player we can be just like how the model tries to minimize the error. However, we need to have "tests" or volleyball matches that determine how well we did in real world applications. If we put all our data as training, then we will always succeed at it because we have mastered the training. However, if were to train all the time without matches and then jump into a volleyball game, we might not do so well because we learned how to train but that may not fully apply to a game.
+
+Furthermore, we will also stratify the data. Stratifying the data means that we ensure that our training and testing have the same proportions both training and testing. Sticking with the analogy, this ensures that we don't miss out on training a specific aspect like blocking and are expected to do it in the test/real game. In this case, it makes sure that we train our model by a good split of teams that won and teams that lost.
+
+```{r}
+vball_split <- initial_split(vball_raw, prop = 0.8, strata = winner)
+vball_train <- training(vball_split)
+vball_test <- testing(vball_split)
+nrow(vball_test)/nrow(vball_raw)
+nrow(vball_train)/nrow(vball_raw)
+```
+We made sure that each proportion of train and test are correct by dividing the number of rows in them by the total number of rows. Since we have split the data, lets move on to making a recipe!
+
+# Recipe 
+
+To make a recipe, we should decide what ingredients/variables we want to leave out. Remember that earlier we mentioned how date, team, score, bp, and sum were all variables we should take out because of how they aren't related to our goal or aren't helpful. So, lets make the recipe and remove these variables.
+
+Then, lets center and scale the other values. Centering makes sure that the mean is around 0 and scaling makes sure that the variance is constant. These are both helpful features so that one value doesn't overshadow others just because its larger.
+
+Additionally, since we have no missing values and categorical values, we won't need to imput with other variables or make dummy variables.
+
+```{r}
+vball_recipe <- recipe(winner ~ ., data = vball_train) %>%
+  step_rm(c("date", "team", "score", "sum", "bp", "ratio")) %>% 
+  step_center() %>% 
+  step_scale() 
+
+prep(vball_recipe) %>% bake(new_data = vball_train)
+```
+After prepping and baking, we can do a quick check to see that the variables of no interest are removed and other variables are kept and correctly centered and scaled. 
+
+# Cross Validation
+
+Cross-validation, in a nutshell, is taking a specific number (5 or 10) and then separating the data into the same number of parts or "folds". Now, we take one fold and set it as the testing data while the other folds are used as the training data. After the data is trained and tested, then the next part is set as the testing data and repeated. In the end, we average the metric across the board and set it as our training metrics 
+
+## Why?
+ 
+Cross-validation can give a bigger picture about what the metrics are/should be. In volleyball, remember how there are 5 sets to play and the team to win 3 sets wins. Now imagine that two teams face off but one team is more skilled than the other. If there are only 1 set, the more skilled team can still lose sometimes if they were to get unlucky with general volleyball skills/movement as no human movement is 100% precise. However, in the long run with 5 sets, the more skilled team would likely win more often because even if they lost one set they can still prove to be the better team and win 3 more. Cross-validation is similar to this. By separating the data and testing multiple times, it can remove this variation and overfitting that exists in the model to give a more accurate response.
+
+
+```{r}
+vball_folds <- vfold_cv(vball_train, strata = winner, v = 5)
+vball_folds
+```
+
+
+# Model Fitting
+
+After finishing the splitting, cross-validation and recipe, we now have all the data we need to fit models. Fitting models is essentially training our data to a set of rules that we enforce. Different rules can give different results and also different testing results. Our main aim in this section is to fit 4 models so that we have a variety to choose from and hopefully find one that works the best for us.
+
+
+
+## Setting up Classification Engines and Models
+
+Now since we want to find out whether or not a team has won, we will use classification rather than regression. Classification is used when we want to predict whether or not the outcome belongs to a certain class. In this case, it is if a team won or lost. As for regression, it is best used when we are trying to predict an exact value like how hot it will be tomorrow.
+
+I have also chosen 6 different models to train the data on. They are as follows: logistic regression, linear discriminant anlysis, quadratic discriminant analysis, elastic net regression, random forest, and boosted trees. The latter ones are more complex while the earlier ones are less complex. What you will find is that elastic net, random forest, and boosted trees all have an added section for the parameters. We will discuss this later and why it is important.
+
+
+```{r}
+# simple logistic regression
+log_reg <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification")
+
+# linear discrminant analysiss
+lda_mod <- discrim_linear() %>% 
+  set_mode('classification') %>% 
+  set_engine('MASS')
+
+# quadratic discriminant analysis
+qda_mod <- discrim_quad() %>% 
+  set_mode('classification') %>% 
+  set_engine('MASS')
+
+# elastic net
+en_mod <- logistic_reg(mixture = tune(),
+                       penalty = tune()) %>% 
+  set_mode("classification") %>% 
+  set_engine('glmnet')
+
+# random forest
+rf_mod <- rand_forest(mtry = tune(), 
+                           trees = tune(), 
+                           min_n = tune()) %>%
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("classification")
+
+# gradient boosted trees
+bt_mod <- boost_tree(mtry = tune(), 
+                           trees = tune(), 
+                           learn_rate = tune()) %>%
+  set_engine("xgboost") %>% 
+  set_mode("classification")
+```
+
+## Creating a Workflows
+
+Creating workflows will help simplify later steps when we have to fit data as it condenses all the information we want into a simple object. In each workflow, we will add the model that we just created, and also the recipe the we created earlier. Let's apply this to all the models.
+
+```{r}
+# logsitic regression workflow
+log_reg_workflow <- workflow() %>%
+  add_recipe(vball_recipe) %>%
+  add_model(log_reg)
+  
+# linear discrimnant analysis workflow
+lda_workflow <- workflow() %>%
+  add_recipe(vball_recipe) %>%
+  add_model(lda_mod)
+
+# quadratic discrminant analysis workflow
+qda_workflow <- workflow() %>%
+  add_recipe(vball_recipe) %>%
+  add_model(qda_mod)
+
+# elastic net workflow
+en_workflow <- workflow() %>%
+  add_recipe(vball_recipe) %>%
+  add_model(en_mod)
+
+# random forest workflow
+rf_workflow <- workflow() %>%
+  add_recipe(vball_recipe) %>%
+  add_model(rf_mod)
+
+# boosted trees workflow
+bt_workflow <- workflow() %>%
+  add_recipe(vball_recipe) %>%
+  add_model(bt_mod)
+```
+
+
+# Model Tuning and Fitting
+
+After we have created the workflows, we can now fit it to the folds that we defined as 5 folds. What this does is it trains and then tests to each fold. The result of each one is how well the folds did which we will use later when deciding how well each one did. For special workflows like elastic grid, random forest and boosted trees, we actually have to set another layer called tuning. You may have noticed how the models for these had an added part. This added part was to allow for some flexibility in the fitting to folds. Because of this flexibility, we actually get to modify/tune selected variables to a range. Now, with this range we are able to find out the best combination of values for the variables that performs the best.
+
+We tune mtry to be 1-16 as this represents the number of features that are decided in the split in the tree, and since we only have at most 16 features, we should also have at most 16 for the mtry value. As for 1, we cannot have less than 1 feature to use at a split or else we won't use any features at all int eh split.
+
+```{r, cache = TRUE}
+# Asked ChatGPT: Create tuning and fitting for the earlier workflows given that the folds are vball_folds
+# Fit logistic regression
+log_reg_results <- log_reg_workflow %>%
+  fit_resamples(resamples = vball_folds)
+
+# Fit LDA
+lda_results <- lda_workflow %>%
+  fit_resamples(resamples = vball_folds)
+
+# Fit QDA
+qda_results <- qda_workflow %>%
+  fit_resamples(resamples = vball_folds)
+
+# Define a grid for Elastic Net
+en_grid <- grid_regular(penalty(), 
+                        mixture(range = c(0,1)), 
+                        levels = 10)
+
+# Tune Elastic Net
+en_results <- en_workflow %>%
+  tune_grid(resamples = vball_folds, grid = en_grid)
+
+# Define a grid for Random Forest
+rf_grid <- grid_regular(mtry(range = c(1,16)), 
+                        trees(range = c(200,600)),
+                        min_n(range = c(10,20)), 
+                        levels = 5)
+
+# Tune Random Forest
+rf_results <- rf_workflow %>%
+  tune_grid(resamples = vball_folds, 
+            grid = rf_grid)
+
+# Define a grid for Boosted Trees
+bt_grid <- grid_regular(mtry(range = c(1,16)), 
+                        trees(range = c(200,600)), 
+                        learn_rate(range = c(-10,-1)), 
+                        levels = 5)
+
+# Tune Boosted Trees
+bt_results <- bt_workflow %>%
+  tune_grid(resamples = vball_folds,
+            grid = bt_grid)
+
+```
+Creating these results now lets us plot and find how accurate they were to the folds!
+
+## Plotting results to ROC_AUC
+
+For the area under the ROC curve, it ranges from 0 to 1. 1 means that it predicted all values correctly, 0.5 is the same as randomly guessing, and 0 is it predicted all values incorrectly. I chose area under the ROC curve because it works very well with classifiers as my classifier is a simple whether or not a team won. With this in mind, we want to find values close to 1. Now, when we plot we should look for values of the variables that were tuned such that they gave the largest area under the ROC curve or roc_auc.
+
+```{r}
+autoplot(en_results) + theme_minimal()
+autoplot(rf_results) + theme_minimal()
+autoplot(bt_results) + theme_minimal()
+```
+
+In the elastic plot, we see how a lower mixture value gives a higher roc_auc because of how the orange line (mixture = 0) had a bigger roc_auc value. On the other hand, a lower penalty value also gives a higher roc_auc.The best elastic net model seems to be the smallest regularization but with a higher proportion of lassso penalty/mixture of 1.
+
+Next, for random forests models seem to do better with 4 predictors rather than extremely small or large amount of predictors. Trees have a negligible difference but larger number of trees do give a higher roc_auc value. The best random forest seems to be around 5 predictors, minimum node size of 12, and 400 trees. 
+
+Finally, for boosted trees the number of trees seem not to do too much as all the lines are coverged in one spot throughout the plots of roc_auc. The number of predictors also doesn't seem to have that much impact but models with a smaller learning rate do well with more predictors while models with a larger learning rate do well with a smaller/medium amount of predictors, 0 to 5 predictors. The best gradient boosted tree seems to be any trees and any number of predictors but with a learning rate of 0.1
+
+
+Looking at these plots, we can notice how roc_auc values for trees and elastic net are extremely high reaching almost roc_auc values of 1. Because of this, I am electing to use select_by_one_std_err instead of select_best if we use random forest or boosted trees. This is motivated by how I want to eliminate as much overfitting as possible in my models, and how since many of the results are close to 1, a difference of 0.05 does not mean as much when I want to reduce overfitting. As such, I am settling for a worse option in order to hopefully get a better testing accuracy.
+
+
+
+## ROC AUC Values
+
+Now, lets look at all other results and the best of the elastic net, random forests, and boosted trees to determine which one has the highest roc_auc value. We should do this to determine which one of the models should fit to the testing data. Although a higher roc_auc value doesn't always mean a better fit to the testing data, it is a good place to start.
+
+```{r}
+# asked ChatGPT how to obtain only roc_auc of collect_metric
+# logistic regression
+collect_metrics(log_reg_results) %>% 
+  filter(.metric == "roc_auc")
+
+# lda 
+collect_metrics(lda_results) %>% 
+  filter(.metric == "roc_auc")
+
+# qda 
+collect_metrics(qda_results) %>% 
+  filter(.metric == "roc_auc")
+
+# elastic net
+show_best(en_results, metric = "roc_auc")
+
+# random forest
+show_best(rf_results, metric = "roc_auc")
+
+# boosted trees
+show_best(bt_results, metric = "roc_auc")
+```
+
+After looking at the results, all models to quite well and all around or above the 0.95 mark for roc_auc. However, the two best seem to be both random forest and boosted trees who boast a 0.951 and 0.954 value respectively. We will now take these into account for fitting the testing data because they are the best performing models that we found.
+
+## Finding Best Results
+
+As mentioned before, I will use select_by_one_std_err to hopefully reduce overfitting when fitting to the test. Select_by_one_std_err will now give us the best results within one standard error of the best option and input it into a variable. This variable contains the necessary parameters for random forest and boosted trees and hopefully the best model for our testing data.
+
+```{r}
+# Finding best results for Logistic, LDA, QDA
+# Finding the best results for tuned results
+best_rf <- select_by_one_std_err(rf_results, 
+                                 metric = "roc_auc", 
+                                 mtry, 
+                                 trees, 
+                                 min_n)
+
+best_bt <- select_by_one_std_err(bt_results, 
+                                 metric = "roc_auc", 
+                                 mtry, 
+                                 trees, 
+                                 learn_rate)
+best_rf
+best_bt
+```
+
+## Finalize Workflows and Fitting
+
+Now that we have the best values for the boosted trees and random forest by one standard error, I will now finalize the workflow in order to prepare to fit to the testing data and to see what values are the most important. In each finalized workflow, we have to input the best values and the workflows to select the best workflow. Then we train it to the training data to prepare for the testing data.
+
+```{r}
+# random forest
+final_rf_model <- finalize_workflow(rf_workflow, best_rf)
+final_rf_model <- fit(final_rf_model, vball_train)
+
+# boosted trees
+final_bt_model <- finalize_workflow(bt_workflow, best_bt)
+final_bt_model <- fit(final_bt_model, vball_train)
+```
+
+## Plotting Tree Model
+
+With the creation of the final models of both the random forest and boosted trees, we can now look the answer the question of "what part of volleyball is the most important". Random forest and boosted trees both allow for plotting of the most important variables which contributed to their success with a vip() function. Let's look at which ones were the most important!
+
+```{r}
+final_rf_model %>% extract_fit_parsnip() %>% 
+  vip() +
+  theme_minimal()
+final_bt_model %>% extract_fit_parsnip() %>% 
+  vip() +
+  theme_minimal()
+```
+
+The plots show how random forest's is majorly impacted by attacking efficiency, followed by the number of service aces and percentage of attacks that were kills. Boosted trees also has these as the most impactful, and in the same order. This can be reasoned by how service aces and kills generate immediate points, so with an increase of them there is a direct increase in the amount of points a teams scored and therefore whether or not they won the set. Attacking efficiency on the other hand, represents the opposite. With a smaller attacking efficient, the team loses points as an attack that was not successful awards the other team a point because the attacker missed. So, a higher attacking efficiency means a lower chance that the other team scored a point.
+
+
+## Fitting to Test Values
+
+Without further ado, we now test how well our model actually did by using the testing data. We will make a confusion matrix which will tell us exactly how we predicted and how many of our prediction were wrong. Then, we will follow up with multiple metrics to test accuracy, sensitivity and specificity of the model. Accuracy is how many were predicted correct over total predictions. Sensitivity, on the other hand, is how many winners were correctly predicted over total number of winners. Specificity measures how many losers were correctly predicted over total number of losers.
+
+```{r}
+# testing error
+augment(final_rf_model, new_data = vball_test) %>% 
+  conf_mat(truth = winner, estimate = .pred_class)
+augment(final_bt_model, new_data = vball_test) %>% 
+  conf_mat(truth = winner, estimate = .pred_class)
+
+# testing accuracy
+multi_metric <- metric_set(accuracy, sensitivity, specificity)
+augment(final_rf_model, new_data = vball_test) %>% 
+  multi_metric(truth = winner, estimate = .pred_class)
+augment(final_bt_model, new_data = vball_test) %>% 
+  multi_metric(truth = winner, estimate = .pred_class)
+```
+
+In the confusion matrix, we were able to see how a large portion of winners and losers were predicted correctly, and this is reflected in how the accuracy was around 88% for both models. However, boosted trees seems to have done better with an overall 89% accuracy value. There were 1056 observations in the testing data and we were able to predict 938 of them correctly! Specificity and sensitivity were also around this range with 88% and 90% respectively. Overall, the testing results show that our model fit extremely well and correctly predicted a large majority of the time.
+
+# Conclusion 
+
+In this study, we aimed to find out whether or not we could predict whether or not a team won given the stats they had during the game. We went through multiple steps of transforming the data, creating models, cross-validating, training the models, and finally testing the models with the testing data. In the end, we found that we could predict at a relatively high accuracy about a team's success. Furthermore, in our best models, we saw that attacking efficiency, percent of attacks that were kills, and number of service aces were the main factors in determining whether a team won. In the random forest and boosted trees models, we fit them to the testing data. Of the 1056 testing observations, 953 were predicted correctly while 124 were predicted incorrectly in random forest model which had the highest accuracy.
+
+Most models performed quite well with the folds all had around 0.95 for area under the ROC curve. I was actually quite surprised by the model performance because it did so well. Looking at just percentages and attacking, I was a bit concerned prior to the study due to how random some variables can be. However, after some exploratory data analysis I saw that there were indeed some trends in the data that I couldn't see with my own eyes. 
+
+In the future, some next steps may be purely developing on variables that deal with sets. In my current model, the data I received only had variables for serves, receiving, and attacks. Setting data may be harder to correctly note down, but they can be helpful for understanding how important it is to be consistent in setting. If some volleyball leagues record this information, it would be extremely helpful to create a new data set following a similar pattern and then find if setting is helpful or not.
+
+Another step to help deal with this issue would be to create a set variable that is taken from the receiving and attacking variables. Since setting is the bridge that connects receives and attacks, future models can actually first find the difference in lets say, the number of positive serve receptions and the number of attacks or even the quality of the attack to find out how many sets were good or bad. A worse set leads to a worse attack usually so this is a good point of reference. However, all speculations on this new variable are not statistically founded and more of reasoning. Nevertheless, this could be a good first step into setting.
+
+Finally, as a last step, other individuals may use support vector machines. Although I did not implement it in this study, it can do well in classifying and finding distinctions of winners and losers. From kernel functions to feature mapping, I believe SVM may do well in ways that were not available/implemented in the models I used.
+
+Overall, these models did much better than I expected, and I am satisfied with how the models performed to the point. It was a great experience throughout the project and to me it felt like a treasure hunt. I wanted to know how the models performed that I kept working on it losing track of time just to see what the roc_auc value was. I didn't realize how much joy a simple roc_auc value could give me, but now I feel great knowing that it worked well. Thank you for reading this study, and I hope this gave you an insight to volleyball and its statistics.
+
+# Sources Cited 
+
+Kaceprgregorwicz. "Men's Volleyball PlusLiga (2008-2022)." 2023, Kaggle, https://www.kaggle.com/datasets/kacpergregorowicz/-mens-volleyball-plusliga-20082022.
+
